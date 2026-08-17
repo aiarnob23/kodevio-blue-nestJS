@@ -42,7 +42,7 @@ export const config = {
       secure: process.env.SMTP_SECURE === 'true', // true for port 465, false for 587
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
-    },
+    },  
   },
   otp: {
     length: parseInt(process.env.OTP_LENGTH || '6'),
@@ -58,6 +58,10 @@ export const config = {
   },
 
   security: {
+    credentials: {
+      adminEmail: process.env.DEFAULT_ADMIN_EMAIL,
+      adminPassword: process.env.DEFAULT_ADMIN_PASSWORD,
+    },
     cors: {
       allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['*'],
     },

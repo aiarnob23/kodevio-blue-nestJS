@@ -13,12 +13,14 @@ import { AppService } from './app.service';
 import { JwtAuthGuard } from './core/guards/jwt-auth.guard';
 import { BullMQModule } from './infrastructure/queues/bullmq.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { SeederModule } from './infrastructure/database/prisma/seeders/seeder.module';
 
 @Module({
   imports: [
     RedisModule,
     BullMQModule,
     RateLimitModule,
+    SeederModule,
     AppLoggerModule,
     PrismaModule,
     RequestContextModule,
