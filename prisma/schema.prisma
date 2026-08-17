@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BANNED
+  SUSPENDED
+  DELETED
+}
+
+enum OTPType {
+  EMAIL_VERIFICATION
+  EMAIL_CHANGE
+  PASSWORD_RESET
+  TWO_FACTOR_AUTHENTICATION
+}
+
+
+// ─────────────────────────────────────────────
+// USER & AUTH
+// ─────────────────────────────────────────────
+model User {
+  id           Int     @id @default(autoincrement())
+  email        String  @unique
+  firstName    String
+  lastName     String?
+  phone        String?
+  passwordHash String
+  role         UserRole @default(USER)
+  isEmailVerified Boolean @default(false)
+  emailVerifiedAt DateTime?
+  status       UserStatus @default(ACTIVE)
+
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  otp      OTP[]
+  sessions UserSession[]
+}
+
+model UserSession {
+  id               Int       @id @default(autoincrement())
+  userId           Int
+  refreshTokenHash String
+  isRevoked        Boolean   @default(false)
+  lastLoginAt      DateTime?
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, refreshTokenHash])
+  @@index([userId, isRevoked])
+}
+
+model OTP {
+  id         Int     @id @default(autoincrement())
+  identifier String
+  codeHash   String
+  type       OTPType
+  userId     Int?
+
+  expiresAt   DateTime
+  verified    Boolean   @default(false)
+  verifiedAt  DateTime?
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  ipAddress   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([identifier, type])
+  @@index([userId])
+}
+
