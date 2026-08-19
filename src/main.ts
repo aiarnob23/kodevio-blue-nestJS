@@ -16,7 +16,7 @@ async function bootstrap() {
     rawBody: true,
     bufferLogs: true,
   });
-
+  
   const logger = app.get(AppLogger);
   app.useLogger(logger);
   app.flushLogs();
