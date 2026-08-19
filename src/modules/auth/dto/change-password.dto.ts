@@ -1,8 +1,8 @@
-import { IsString, MaxLength, MinLength, Matches } from "class-validator";
+import { IsString, MinLength, MaxLength, Matches } from "class-validator";
 
-export class ResetPasswordDto {
+export class ChangePasswordDto {
     @IsString()
-    resetToken: string;
+    oldPassword: string;
 
     @IsString()
     @MinLength(6)

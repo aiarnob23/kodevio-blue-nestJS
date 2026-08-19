@@ -62,7 +62,7 @@ export class AdminSeeder implements Seeder {
           lastName: adminSeedConfig.lastName,
           passwordHash,
 
-          role: UserRole.SUPER_ADMIN,
+          role: UserRole.ADMIN,
           status: UserStatus.ACTIVE,
 
           isEmailVerified: true,
@@ -79,7 +79,7 @@ export class AdminSeeder implements Seeder {
       });
 
       this.logger
-        .warn(`Default SUPER_ADMIN account created. Change the default password immediately.,
+        .warn(`Default ADMIN account created. Change the default password immediately.,
         
           adminId: ${admin.id},
           email: ${admin.email}`);

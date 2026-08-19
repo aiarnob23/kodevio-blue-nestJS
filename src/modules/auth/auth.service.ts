@@ -7,7 +7,7 @@ import { TokenService } from "./token.service";
 import { OtpService } from "../otp/otp.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { RegisterDto } from "./dto/register.dto";
-import { AuthTokenResult, LogoutResponse, RegisterResponse, SimpleMessageResponse } from "./types/auth.interfaces";
+import { AuthTokenResult, LogoutResponse, RegisterResponse, SimpleMessageResponse, VerifyResetOtpResponse } from "./types/auth.interfaces";
 import { ConflictException } from "src/core/exceptions/conflict.exceptions";
 import { ErrorCodes } from "src/core/exceptions/error-codes";
 import { RequestContext } from "src/core/context/request/request-context";
@@ -18,11 +18,14 @@ import { UnauthorizedException } from "src/core/exceptions/unauthorized.exceptio
 import { config } from "src/core/config";
 import { SessionService } from "../sessions/sessions.service";
 import Redis from "ioredis";
-import { TOKEN_BLACKLIST_PREFIX } from "./auth.constants";
+import { PASSWORD_RESET_TOKEN_PREFIX, TOKEN_BLACKLIST_PREFIX } from "./auth.constants";
 import { VerifyEmailDto } from "./dto/verify-email.dto";
 import { ResendVerificationDto } from "./dto/resend-verification.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { VerifyResetOtpDto } from "./dto/verify-reset-otp.dto";
+import { randomBytes } from "node:crypto";
+import { ChangePasswordDto } from "./dto/change-password.dto";
 
 @Injectable()
 export class AuthService {
@@ -226,21 +229,79 @@ export class AuthService {
 
     //Reset Password
     async resetPassword(dto: ResetPasswordDto): Promise<SimpleMessageResponse> {
-        const normalizedEmail = dto.email.trim().toLowerCase();
-        const user = await this.usersService.findByEmail(normalizedEmail);
-        if (!user || user.deletedAt) {
-            throw new UnauthorizedException(ErrorCodes.OTP_INVALID, 'Invalid or expired verification code');
-        }
+        const key = `${PASSWORD_RESET_TOKEN_PREFIX}${dto.resetToken}`;
+         const raw = await this.redis.get(key);
+    if (!raw) {
+        throw new UnauthorizedException(ErrorCodes.RESET_TOKEN_INVALID, 'Invalid or expired reset session, please verify code again');
+    }
 
-        await this.otpService.verify(normalizedEmail, OTPType.PASSWORD_RESET, dto.code);
+    // single-use: consume immediately so it can't be replayed
+    await this.redis.del(key);
 
-        const newPasswordHash = await this.hashPassword(dto.newPassword);
-        await this.usersService.updatePassword(user.id, newPasswordHash);
+        const { userId, email } = JSON.parse(raw) as { userId: number; email: string };
 
-        await this.sessionService.revokeAllSessions(user.id);
+    const user = await this.usersService.findByEmail(email);
+    if (!user || user.deletedAt || user.id !== userId) {
+        throw new UnauthorizedException(ErrorCodes.RESET_TOKEN_INVALID, 'Invalid or expired reset session, please verify code again');
+    }
 
-        this.logger.info('Password reset successfully', { userId: user.id });
-        return { message: 'Password reset successfully. Please log in again on all your devices.' };
+    const newPasswordHash = await this.hashPassword(dto.newPassword);
+    await this.usersService.updatePassword(user.id, newPasswordHash);
+
+    await this.sessionService.revokeAllSessions(user.id);
+
+    this.logger.info('Password reset successfully', { userId: user.id });
+    return { message: 'Password reset successfully. Please log in again on all your devices.' };
+    }
+
+    //Change Password
+    async changePassword(email: string, dto: ChangePasswordDto): Promise<SimpleMessageResponse> {
+    const user = await this.usersService.findByEmail(email);
+    if (!user || user.deletedAt) {
+        throw new UnauthorizedException(ErrorCodes.INVALID_TOKEN, 'Access token is invalid or expired');
+    }
+
+    const isValidPassword = await this.verifyPassword(dto.oldPassword, user.passwordHash);
+    if (!isValidPassword) {
+        this.logger.info('Change password failed: incorrect old password', { userId: user.id });
+        throw new UnauthorizedException(ErrorCodes.INVALID_CREDENTIALS, 'Current password is incorrect');
+    }
+
+    const newPasswordHash = await this.hashPassword(dto.newPassword);
+    await this.usersService.updatePassword(user.id, newPasswordHash);
+
+    await this.sessionService.revokeAllSessions(user.id);
+
+    this.logger.info('Password changed successfully', { userId: user.id });
+    return { message: 'Password changed successfully. Please log in again on all your devices.' };
+}
+
+    //Verify Reset OTP 
+    async verifyResetOtp(dto: VerifyResetOtpDto): Promise<VerifyResetOtpResponse> {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(normalizedEmail);
+    if (!user || user.deletedAt) {
+        throw new UnauthorizedException(ErrorCodes.OTP_INVALID, 'Invalid or expired verification code');
+    }
+
+    // consumes the OTP (single-use, since findLatestActive filters verified: false)
+    await this.otpService.verify(normalizedEmail, OTPType.PASSWORD_RESET, dto.code);
+
+    const resetToken = randomBytes(32).toString('hex');
+    const ttlSeconds = config.otp.expiryMinutes * 60;
+
+    await this.redis.setex(
+        `${PASSWORD_RESET_TOKEN_PREFIX}${resetToken}`,
+        ttlSeconds,
+        JSON.stringify({ userId: user.id, email: user.email }),
+    );
+
+    this.logger.info('Reset OTP verified, reset token issued', { userId: user.id });
+
+    return {
+        message: 'Code verified. You can now set a new password.',
+        data: { resetToken },
+    };
     }
 
      private async hashPassword(password: string): Promise<string> {

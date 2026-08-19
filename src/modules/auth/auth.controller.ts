@@ -20,6 +20,10 @@ import {
     REFRESH_TOKEN_BUCKET,
 } from 'src/core/rate-limit/constants/buckets';
 import { AuthTokenResponse } from './types/auth-token-response.type';
+import { VerifyResetOtpDto } from './dto/verify-reset-otp.dto';
+import { CurrentUser } from 'src/core/decorators/current-user.decorator';
+import { JwtPayload } from './token.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 const REFRESH_COOKIE_OPTIONS = {
     httpOnly: true,
@@ -113,11 +117,30 @@ export class AuthController {
 
     @Public()
     @RateLimit(RESET_PASSWORD_BUCKET)
+    @Post('verify-reset-otp')
+    @HttpCode(HttpStatus.OK)
+    async verifyResetOtp(@Body() dto: VerifyResetOtpDto) {
+        const result = await this.authService.verifyResetOtp(dto);
+        return { message: result.message, data: result.data };
+    }
+
+    @Public()
+    @RateLimit(RESET_PASSWORD_BUCKET)
     @Post('reset-password')
     @HttpCode(HttpStatus.OK)
     async resetPassword(@Body() dto: ResetPasswordDto) {
         const result = await this.authService.resetPassword(dto);
         return { message: result.message, data: {} };
+    }
+
+    @Post('change-password')
+    @HttpCode(HttpStatus.OK)
+    async changePassword(
+        @CurrentUser() user: JwtPayload,
+        @Body() dto: ChangePasswordDto,
+    ) {
+        const result = await this.authService.changePassword(user.email, dto);
+        return {message: result.message, data: {}}
     }
 
     private setRefreshCookie(res: Response, refreshToken: string): void {

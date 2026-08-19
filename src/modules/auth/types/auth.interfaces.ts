@@ -22,3 +22,10 @@ export interface LogoutResponse {
 export interface SimpleMessageResponse {
     message: string;
 }
+
+export interface VerifyResetOtpResponse {
+    message: string;
+    data: {
+        resetToken: string;
+    };
+}
