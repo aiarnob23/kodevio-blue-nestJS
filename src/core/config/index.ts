@@ -42,7 +42,7 @@ export const config = {
       secure: process.env.SMTP_SECURE === 'true', // true for port 465, false for 587
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
-    },  
+    },
   },
   otp: {
     length: parseInt(process.env.OTP_LENGTH || '6'),
@@ -58,12 +58,20 @@ export const config = {
   },
 
   security: {
+    trustProxy: Number(process.env.TRUST_PROXY ?? 0),
     credentials: {
       adminEmail: process.env.DEFAULT_ADMIN_EMAIL,
       adminPassword: process.env.DEFAULT_ADMIN_PASSWORD,
     },
     cors: {
-      allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['*'],
+      allowedOrigins: process.env.ALLOWED_ORIGINS
+        ? process.env.ALLOWED_ORIGINS.split(',')
+        : (() => {
+            if (process.env.NODE_ENV === 'production') {
+              throw new Error('ALLOWED_ORIGINS must be set in production');
+            }
+            return ['http://localhost:5173', 'http://localhost:3001'];
+          })(),
     },
     rateLimit: {
       windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),

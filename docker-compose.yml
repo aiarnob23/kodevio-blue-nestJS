@@ -11,7 +11,7 @@ services:
       - "3000:3000"
     volumes:
       - .:/app:Z
-      - /app/node_modules
+      - api_node_modules:/app/node_modules
     depends_on:
       - postgres-db
       - redis-db
@@ -62,6 +62,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  api_node_modules:
 
 networks:
   kodevio_server_network:
